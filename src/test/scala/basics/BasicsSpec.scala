@@ -14,10 +14,12 @@ class BasicsSpec extends AnyFlatSpec with should.Matchers {
     lcm(4, 5) should be(20)
     lcm(12, 18) should be(36)
     lcm(72, 120) should be(360)
-    lcm(60, 18, 28) should be(1260)
-    lcm(6, 11, 18) should be(198)
-    lcm(8, 3, 5) should be(120)
-    lcm(10) should be(10)
+    lcm(List(60,18,28)) should be(1260)
+    lcm(List(6, 11, 18)) should be(198)
+    lcm(List(8, 3, 5)) should be(120)
+    lcm(List(10)) should be(10)
+
+    //lcm(Vector(1, 2, 3)) should be (6) test
   }
 
   "gcd" should "calc" in {
