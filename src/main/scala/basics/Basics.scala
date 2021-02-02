@@ -7,7 +7,7 @@ object Basics {
   def lcm(numbers: List[Int]): Int = numbers match {
     case Nil => 0
     case n :: Nil => n
-    case _ => lcm(lcm(numbers.dropRight(1)), numbers.last)
+    case n :: ns => lcm(lcm(ns), n)
   }
 
   def lcm(a: Int, b: Int): Int = if (a == 0 || b == 0) 0 else Math.abs(a * b) / gcd(a, b)
