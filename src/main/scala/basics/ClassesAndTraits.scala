@@ -111,21 +111,21 @@ object ClassesAndTraits {
   }
 
   case class Sphere(center: Point3D, radius: Double) extends Shape3D with Movable3D[Sphere] {
-    override def surfaceArea: Double = ???
-    override def volume: Double = ???
+    override def surfaceArea: Double = 4 * Math.PI * Math.pow(radius, 2)
+    override def volume: Double = (4 / 3) * Math.PI * Math.pow(radius, 3)
     override def move(dx: Double, dy: Double, dz: Double): Sphere = Sphere(center.move(dx, dy, dz), radius)
   }
 
   case class Cube(center: Point3D, side: Double) extends Shape3D with Movable3D[Cube] {
-    override def surfaceArea: Double = ???
-    override def volume: Double = ???
+    override def surfaceArea: Double = 6 * Math.pow(side, 2)
+    override def volume: Double = Math.pow(side, 3)
     override def move(dx: Double, dy: Double, dz: Double): Cube = Cube(center.move(dx, dy, dz), side)
   }
 
-  case class Cuboid(center: Point3D, width: Double, height: Double) extends Shape3D with Movable3D[Cuboid] {
-    override def surfaceArea: Double = ???
-    override def volume: Double = ???
-    override def move(dx: Double, dy: Double, dz: Double): Cuboid = Cuboid(center.move(dx, dy, dz), width, height)
+  case class Cuboid(center: Point3D, width: Double, height: Double, length: Double) extends Shape3D with Movable3D[Cuboid] {
+    override def surfaceArea: Double = 2 * (length * width + width * height + height * length)
+    override def volume: Double = width * height * length
+    override def move(dx: Double, dy: Double, dz: Double): Cuboid = Cuboid(center.move(dx, dy, dz), width, height, length)
   }
 
   case class Triangle3D(p1: Point3D, p2: Point3D, p3: Point3D, p4: Point3D) extends Shape3D with Movable3D[Triangle3D] {
