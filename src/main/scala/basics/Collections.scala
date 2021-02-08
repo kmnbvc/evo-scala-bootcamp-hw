@@ -8,7 +8,7 @@ object Collections {
   // https://leetcode.com/problems/running-sum-of-1d-array/
   object SolutionRunningSum {
     def runningSum(nums: Array[Int]): Array[Int] = {
-      nums.scanLeft(List[Int]())((acc, x) => x :: acc).tail.map(_.sum)
+      nums.scanLeft(0)(_ + _).tail
     }
   }
 
@@ -16,8 +16,8 @@ object Collections {
   object SolutionShuffle {
     def shuffle(nums: Array[Int], n: Int): Array[Int] = {
       nums.zip(nums.drop(n)).foldLeft(List[Int]()) {
-        case (acc, (x, y)) => acc :+ x :+ y
-      }.toArray
+        case (acc, (x, y)) => x :: y :: acc
+      }.reverse.toArray
     }
   }
 
@@ -77,8 +77,8 @@ object Collections {
       val result = for {
         i <- Array.range(0, m)
         j <- Array.range(0, n)
-        rs = (i - K).to(i + K).filter(r => r >= 0 && r < mat.length)
-        cs = (j - K).to(j + K).filter(c => c >= 0 && c < mat(i).length)
+        rs = (i - K to i + K).filter(r => r >= 0 && r < m)
+        cs = (j - K to j + K).filter(c => c >= 0 && c < n)
         y = rs.flatMap(r => cs.map(c => mat(r)(c)))
       } yield y.sum
 
