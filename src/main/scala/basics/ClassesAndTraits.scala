@@ -69,12 +69,10 @@ object ClassesAndTraits {
     override def maxX: Double = xs.max
     override def minY: Double = ys.min
     override def maxY: Double = ys.max
-    // note: implemented that way just for fun
-    override def move(dx: Double, dy: Double): Triangle = Triangle.tupled(
-      List(p1, p2, p3).map(_.move(dx, dy)) match {
-        case p1 :: p2 :: p3 :: Nil => (p1, p2, p3)
-        case _ => throw new RuntimeException
-      })
+    override def move(dx: Double, dy: Double): Triangle = {
+      val m: Point => Point = _.move(dx, dy)
+      Triangle(m(p1), m(p2), m(p3))
+    }
 
     override def area: Double = {
       val (a, b, c) = sidesLen
@@ -131,12 +129,10 @@ object ClassesAndTraits {
   case class Triangle3D(p1: Point3D, p2: Point3D, p3: Point3D, p4: Point3D) extends Shape3D with Movable3D[Triangle3D] {
     override def surfaceArea: Double = ???
     override def volume: Double = ???
-    // much fun again
-    override def move(dx: Double, dy: Double, dz: Double): Triangle3D = Triangle3D.tupled(
-      List(p1, p2, p3, p4).map(_.move(dx, dy, dz)) match {
-        case p1 :: p2 :: p3 :: p4 :: Nil => (p1, p2, p3, p4)
-        case _ => throw new RuntimeException
-      })
+    override def move(dx: Double, dy: Double, dz: Double): Triangle3D = {
+      val m: Point3D => Point3D = _.move(dx, dy, dz)
+      Triangle3D(m(p1), m(p2), m(p3), m(p4))
+    }
   }
 
 }
