@@ -19,17 +19,19 @@ object AlgebraicDataTypes {
   final case class Card(suit: Suit, rank: Rank)
 
   trait CombinationType
+  trait Board extends CombinationType
+  trait Hand extends CombinationType
   object CombinationType {
-    final case class TexasHoldemHand() extends CombinationType
-    final case class TexasHoldemBoard() extends CombinationType
-    final case class OmahaHoldemHand() extends CombinationType
-    final case class OmahaHoldemBoard() extends CombinationType
+    final case class TexasHoldemHand() extends Hand
+    final case class TexasHoldemBoard() extends Board
+    final case class OmahaHoldemHand() extends Hand
+    final case class OmahaHoldemBoard() extends Board
     final case class MatchedCombination() extends CombinationType
   }
 
-  final case class Combination private(cards: List[Card], ctype: CombinationType)
+  final case class Combination[+T <: CombinationType] private(cards: List[Card], ctype: T)
   object Combination {
-    def apply(cards: List[Card], ctype: CombinationType): Either[CombinationError, Combination] = {
+    def apply[T](cards: List[Card], ctype: T): Either[CombinationError, Combination[T]] = {
       val checkingSizeEq = (size: Int) => Either.cond(cards.length == size, new Combination(cards, ctype), IncorrectCombinationSize(s"must be $size cards"))
 
       ctype match {
@@ -38,16 +40,15 @@ object AlgebraicDataTypes {
         case CombinationType.TexasHoldemBoard() => checkingSizeEq(5)
         case CombinationType.TexasHoldemHand() => checkingSizeEq(2)
         case CombinationType.MatchedCombination() => Either.cond(cards.length >= 2, new Combination(cards, ctype), IncorrectCombinationSize("must be at least 2 cards"))
-        case _ => Left(UnsupportedCombination(ctype))
+        case _ => Left(UnsupportedCombinationType(ctype))
       }
     }
   }
 
   trait CombinationError
   final case class IncorrectCombinationSize(msg: String) extends CombinationError
-  final case class UnsupportedCombination(ctype: CombinationType) extends CombinationError
+  final case class UnsupportedCombinationType[T <: CombinationType](ctype: T) extends CombinationError
 
-  final case class TestCase(board: Combination, hands: List[Combination])
-  final case class TestResult(board: Combination, hands: SortedSet[Combination])
-
+  final case class TestCase(board: Combination[Board], hands: List[Combination[Hand]])
+  final case class TestResult(board: Combination[Board], hands: SortedSet[Combination[Hand]])
 }
