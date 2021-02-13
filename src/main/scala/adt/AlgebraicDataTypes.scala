@@ -5,23 +5,23 @@ import scala.collection.SortedSet
 object AlgebraicDataTypes {
 
   final case class Suit private(name: String)
-  object Suit {
+  final object Suit {
     private val suits = Set("s", "d", "h", "c")
     def apply(s: String): Option[Suit] = Option.when(suits.contains(s))(new Suit(s))
   }
 
   final case class Rank private(value: Int)
-  object Rank {
+  final object Rank {
     private val ranks = Map("A" -> 14, "K" -> 13, "Q" -> 12, "J" -> 11, "T" -> 10) ++ (2 to 9).map(n => n.toString -> n)
     def apply(s: String): Option[Rank] = Option.when(ranks.contains(s))(new Rank(ranks(s)))
   }
 
   final case class Card(suit: Suit, rank: Rank)
 
-  trait CombinationType
-  trait Board extends CombinationType
-  trait Hand extends CombinationType
-  object CombinationType {
+  sealed trait CombinationType
+  sealed trait Board extends CombinationType
+  sealed trait Hand extends CombinationType
+  final object CombinationType {
     final case class TexasHoldemHand() extends Hand
     final case class TexasHoldemBoard() extends Board
     final case class OmahaHoldemHand() extends Hand
@@ -30,8 +30,8 @@ object AlgebraicDataTypes {
   }
 
   final case class Combination[+T <: CombinationType] private(cards: List[Card], ctype: T)
-  object Combination {
-    def apply[T](cards: List[Card], ctype: T): Either[CombinationError, Combination[T]] = {
+  final object Combination {
+    def apply[T <: CombinationType](cards: List[Card], ctype: T): Either[CombinationError, Combination[T]] = {
       val checkingSizeEq = (size: Int) => Either.cond(cards.length == size, new Combination(cards, ctype), IncorrectCombinationSize(s"must be $size cards"))
 
       ctype match {
@@ -45,7 +45,7 @@ object AlgebraicDataTypes {
     }
   }
 
-  trait CombinationError
+  sealed trait CombinationError
   final case class IncorrectCombinationSize(msg: String) extends CombinationError
   final case class UnsupportedCombinationType[T <: CombinationType](ctype: T) extends CombinationError
 
