@@ -1,0 +1,1 @@
+addSbtPlugin("evo-scala-bootcamp-homeworks" % "evo-scala-bootcamp-homeworks" % "1.0")

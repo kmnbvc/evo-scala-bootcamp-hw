@@ -7,13 +7,13 @@ object AlgebraicDataTypes {
   final case class Suit private(name: String)
   final object Suit {
     private val suits = Set("s", "d", "h", "c")
-    def apply(s: String): Option[Suit] = Option.when(suits.contains(s))(new Suit(s))
+    def apply(s: String): Option[Suit] = None//Option.when(suits.contains(s))(new Suit(s))
   }
 
   final case class Rank private(value: Int)
   final object Rank {
     private val ranks = Map("A" -> 14, "K" -> 13, "Q" -> 12, "J" -> 11, "T" -> 10) ++ (2 to 9).map(n => n.toString -> n)
-    def apply(s: String): Option[Rank] = Option.when(ranks.contains(s))(new Rank(ranks(s)))
+    def apply(s: String): Option[Rank] = None//Option.when(ranks.contains(s))(new Rank(ranks(s)))
   }
 
   final case class Card(suit: Suit, rank: Rank)
