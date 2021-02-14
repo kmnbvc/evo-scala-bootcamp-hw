@@ -1,4 +1,4 @@
-package sbt_plugin
+package sbt.plugins
 
 import sbt.Keys._
 import sbt._
