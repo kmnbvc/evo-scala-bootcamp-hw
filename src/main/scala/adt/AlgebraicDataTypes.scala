@@ -4,16 +4,29 @@ import scala.collection.SortedSet
 
 object AlgebraicDataTypes {
 
-  final case class Suit private(name: String)
-  final object Suit {
-    private val suits = Set("s", "d", "h", "c")
-    def apply(s: String): Option[Suit] = Option.when(suits.contains(s))(new Suit(s))
+  sealed trait Suit
+  object Suit {
+    case object Diamonds extends Suit
+    case object Hearts extends Suit
+    case object Spades extends Suit
+    case object Clubs extends Suit
   }
 
-  final case class Rank private(value: Int)
-  final object Rank {
-    private val ranks = Map("A" -> 14, "K" -> 13, "Q" -> 12, "J" -> 11, "T" -> 10) ++ (2 to 9).map(n => n.toString -> n)
-    def apply(s: String): Option[Rank] = Option.when(ranks.contains(s))(new Rank(ranks(s)))
+  sealed trait Rank
+  object Rank {
+    case object Two extends Rank
+    case object Three extends Rank
+    case object Four extends Rank
+    case object Five extends Rank
+    case object Six extends Rank
+    case object Seven extends Rank
+    case object Eight extends Rank
+    case object Nine extends Rank
+    case object Ten extends Rank
+    case object Jack extends Rank
+    case object Queen extends Rank
+    case object King extends Rank
+    case object Ace extends Rank
   }
 
   final case class Card(suit: Suit, rank: Rank)
@@ -21,25 +34,27 @@ object AlgebraicDataTypes {
   sealed trait CombinationType
   sealed trait Board extends CombinationType
   sealed trait Hand extends CombinationType
-  final object CombinationType {
-    final case class TexasHoldemHand() extends Hand
-    final case class TexasHoldemBoard() extends Board
-    final case class OmahaHoldemHand() extends Hand
-    final case class OmahaHoldemBoard() extends Board
-    final case class MatchedCombination() extends CombinationType
+  object CombinationType {
+    case object TexasHoldemHand extends Hand
+    case object TexasHoldemBoard extends Board
+    case object OmahaHoldemHand extends Hand
+    case object OmahaHoldemBoard extends Board
+    case object MatchedCombination extends CombinationType
   }
 
   final case class Combination[+T <: CombinationType] private(cards: List[Card], ctype: T)
-  final object Combination {
+  object Combination {
+    import CombinationType._
+
     def apply[T <: CombinationType](cards: List[Card], ctype: T): Either[CombinationError, Combination[T]] = {
       val checkingSizeEq = (size: Int) => Either.cond(cards.length == size, new Combination(cards, ctype), IncorrectCombinationSize(s"must be $size cards"))
 
       ctype match {
-        case CombinationType.OmahaHoldemBoard() => checkingSizeEq(5)
-        case CombinationType.OmahaHoldemHand() => checkingSizeEq(4)
-        case CombinationType.TexasHoldemBoard() => checkingSizeEq(5)
-        case CombinationType.TexasHoldemHand() => checkingSizeEq(2)
-        case CombinationType.MatchedCombination() => Either.cond(cards.length >= 2, new Combination(cards, ctype), IncorrectCombinationSize("must be at least 2 cards"))
+        case OmahaHoldemBoard => checkingSizeEq(5)
+        case OmahaHoldemHand => checkingSizeEq(4)
+        case TexasHoldemBoard => checkingSizeEq(5)
+        case TexasHoldemHand => checkingSizeEq(2)
+        case MatchedCombination => Either.cond(cards.length >= 2, new Combination(cards, ctype), IncorrectCombinationSize("must be at least 2 cards"))
         case _ => Left(UnsupportedCombinationType(ctype))
       }
     }
