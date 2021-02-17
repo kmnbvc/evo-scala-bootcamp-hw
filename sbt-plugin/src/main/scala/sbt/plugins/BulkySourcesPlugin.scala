@@ -1,9 +1,7 @@
 package sbt.plugins
 
 import sbt.Keys._
-import sbt._
-
-import scala.io.Source
+import sbt.{Def, _}
 
 object BulkySourcesPlugin extends AutoPlugin {
 
@@ -12,27 +10,17 @@ object BulkySourcesPlugin extends AutoPlugin {
 
   lazy val bulkySourcesTask = Def.task {
     val threshold = bulkyThresholdInLines.value
-    val srcFiles = sources.value
-    val bulkyFiles = srcFiles
-      .map(f => (lines(f), f))
-      .filter(_._1 > threshold)
-      .sortBy(_._1)(Ordering[Int].reverse)
-    bulkyFiles
+    sources.value.map(countLinesTuple).filter(exceed(threshold)).sorted(ordering)
   }
 
-  override val projectSettings = inConfig(Compile)(runTask) ++ inConfig(Test)(runTask)
+  override def projectSettings: Seq[Def.Setting[_]] = inConfig(Compile)(taskSetting) ++ inConfig(Test)(taskSetting)
+  override def globalSettings: Seq[Def.Setting[_]] = bulkyThresholdInLines := 100
 
-  override val globalSettings = bulkyThresholdInLines := 100
-
-  private def lines(f: File): Int = {
-    val s = Source.fromFile(f)
-    try {
-      s.getLines().length
-    } finally {
-      s.close()
-    }
+  private val taskSetting = bulkySources := bulkySourcesTask.value
+  private val countLines: File => Int = f => IO.readLines(f).length
+  private val countLinesTuple: File => (Int, File) = f => (countLines(f), f)
+  private val exceed: Int => ((Int, File)) => Boolean = threshold => {
+    case (linesNumber, _) => linesNumber > threshold
   }
-
-  private def runTask = bulkySources := bulkySourcesTask.value
-
+  private val ordering = Ordering[(Int, File)].reverse
 }
