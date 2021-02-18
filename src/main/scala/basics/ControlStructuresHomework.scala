@@ -22,7 +22,7 @@ object ControlStructuresHomework {
   def parseCommand(x: String): Either[ErrorMessage, Command] = {
     def parseNumbers(in: List[String]): Either[ErrorMessage, List[Double]] = Try(in.map(_.toDouble)).toOption.toRight(ErrorMessage("wrong numbers format"))
 
-    x.split(' ').toList match {
+    x.split("\\s+").toList match {
       case Nil | _ :: Nil => Left(ErrorMessage("nothing to calculate"))
       case cmd :: nums =>
         parseNumbers(nums).flatMap(numbers => cmd match {
