@@ -20,19 +20,25 @@ object ControlStructuresHomework {
   import Command._
 
   def parseCommand(x: String): Either[ErrorMessage, Command] = {
-    def parseNumbers(in: List[String]): Either[ErrorMessage, List[Double]] = Try(in.map(_.toDouble)).toOption.toRight(ErrorMessage("wrong numbers format"))
+    val parseNumbers = (in: List[String]) => Try(in.map(_.toDouble)).toOption.toRight(ErrorMessage("wrong numbers format"))
+    val binaryOpArgs = (in: List[Double]) => in match {
+      case x :: y :: Nil => Right((x, y))
+      case _ => Left(ErrorMessage("this command takes 2 numbers"))
+    }
 
     x.split("\\s+").toList match {
       case Nil | _ :: Nil => Left(ErrorMessage("nothing to calculate"))
-      case cmd :: nums =>
-        parseNumbers(nums).flatMap(numbers => cmd match {
-          case "divide" => Either.cond(numbers.length == 2, Divide(numbers.head, numbers.last), ErrorMessage("divide command takes 2 numbers"))
+      case cmd :: nums => for {
+        numbers <- parseNumbers(nums)
+        result <- cmd match {
+          case "divide" => binaryOpArgs(numbers).map(x => Divide(x._1, x._2))
           case "sum" => Right(Sum(numbers))
           case "average" => Right(Average(numbers))
           case "min" => Right(Min(numbers))
           case "max" => Right(Max(numbers))
           case _ => Left(ErrorMessage("unknown command"))
-        })
+        }
+      } yield result
     }
   }
 

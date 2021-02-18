@@ -31,8 +31,8 @@ class ControlStructuresHomeworkTest extends AnyFlatSpec with should.Matchers {
   }
 
   "divide with more or less than 2 numbers" should "return error" in {
-    process("divide 1 2 3") should be("Error: divide command takes 2 numbers")
-    process("divide 1") should be("Error: divide command takes 2 numbers")
+    process("divide 1 2 3") should be("Error: this command takes 2 numbers")
+    process("divide 1") should be("Error: this command takes 2 numbers")
   }
 
   "unknown command" should "return error" in {
