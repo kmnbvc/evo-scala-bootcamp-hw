@@ -42,7 +42,7 @@ object AlgebraicDataTypes {
     case object MatchedCombination extends CombinationType
   }
 
-  final case class Combination[+T <: CombinationType] private(cards: List[Card], ctype: T)
+  final case class Combination[T <: CombinationType] private(cards: List[Card], ctype: T)
   object Combination {
     import CombinationType._
 
@@ -64,6 +64,6 @@ object AlgebraicDataTypes {
   final case class IncorrectCombinationSize(msg: String) extends CombinationError
   final case class UnsupportedCombinationType[T <: CombinationType](ctype: T) extends CombinationError
 
-  final case class TestCase(board: Combination[Board], hands: List[Combination[Hand]])
-  final case class TestResult(board: Combination[Board], hands: SortedSet[Combination[Hand]])
+  final case class TestCase(board: Combination[_ <: Board], hands: List[Combination[_ <: Hand]])
+  final case class TestResult(board: Combination[_ <: Board], hands: SortedSet[Combination[_ <: Hand]])
 }
