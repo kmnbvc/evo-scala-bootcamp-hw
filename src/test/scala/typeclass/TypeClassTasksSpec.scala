@@ -3,7 +3,7 @@ package typeclass
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
 
-class HomeworkSpec extends AnyFlatSpec with should.Matchers {
+class TypeClassTasksSpec extends AnyFlatSpec with should.Matchers {
 
   "task 1" should "pass" in {
     import Task1._

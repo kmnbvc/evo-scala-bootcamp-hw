@@ -1,5 +1,16 @@
 package typeclass
 
+object TypeClassTask {
+  type HashCode[T] = Function[T, Int]
+
+  implicit class HashCodeSyntax[A : HashCode](x: A)(implicit magic: HashCode[A]) {
+    def hash: Int = magic.apply(x)
+  }
+
+  implicit val hashCodeString: HashCode[String] = s => s.hashCode
+  "abc".hash
+}
+
 object Task1 {
   final case class Money(amount: BigDecimal)
 
@@ -58,19 +69,19 @@ object Task4 {
 }
 
 object AdvancedHomework {
-  trait AltFlatMap[F[_], A, B] {
-    def _flatMap(entity: F[A])(f: A => F[B]): F[B]
+  trait FlatMap[F[_]] {
+    def _flatMap[A, B](entity: F[A])(f: A => F[B]): F[B]
   }
 
-  implicit class AltFlatMapSyntax[F[_], A, B](entity: F[A]) {
-    def _flatMap(f: A => F[B])(implicit ev: AltFlatMap[F, A, B]): F[B] = ev._flatMap(entity)(f)
+  implicit class FlatMapSyntax[F[_] : FlatMap, A](entity: F[A])(implicit ev: FlatMap[F]) {
+    def _flatMap[B](f: A => F[B]): F[B] = ev._flatMap(entity)(f)
   }
 
   case class User(id: String, name: String)
   case class Admin(id: String, name: String, permission: String)
 
-  implicit val userFlatMap: AltFlatMap[Option, User, Admin] = new AltFlatMap[Option, User, Admin] {
-    override def _flatMap(entity: Option[User])(f: User => Option[Admin]): Option[Admin] = entity.flatMap(f)
+  implicit val optionFlatMap: FlatMap[Option] = new FlatMap[Option] {
+    override def _flatMap[A, B](entity: Option[A])(f: A => Option[B]): Option[B] = entity.flatMap(f)
   }
 
   Option(User("1", "aaa"))._flatMap {
