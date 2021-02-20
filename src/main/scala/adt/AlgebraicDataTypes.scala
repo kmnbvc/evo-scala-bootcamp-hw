@@ -31,39 +31,46 @@ object AlgebraicDataTypes {
 
   final case class Card(suit: Suit, rank: Rank)
 
-  sealed trait CombinationType
-  sealed trait Board extends CombinationType
-  sealed trait Hand extends CombinationType
-  object CombinationType {
-    case object TexasHoldemHand extends Hand
-    case object TexasHoldemBoard extends Board
-    case object OmahaHoldemHand extends Hand
-    case object OmahaHoldemBoard extends Board
-    case object MatchedCombination extends CombinationType
+  sealed trait Category
+  object Category {
+    case object HighCard extends Category
+    case object Pair extends Category
+    case object TwoPairs extends Category
+    case object ThreeOfAKind extends Category
+    case object Straight extends Category
+    case object Flush extends Category
+    case object FullHouse extends Category
+    case object FourOfAKind extends Category
+    case object StraightFlush extends Category
   }
 
-  final case class Combination[T <: CombinationType] private(cards: List[Card], ctype: T)
-  object Combination {
-    import CombinationType._
+  sealed trait Board
+  sealed trait Hand
 
-    def apply[T <: CombinationType](cards: List[Card], ctype: T): Either[CombinationError, Combination[T]] = {
-      val checkingSizeEq = (size: Int) => Either.cond(cards.length == size, new Combination(cards, ctype), IncorrectCombinationSize(s"must be $size cards"))
+  final case class FiveCardBoard private(cards: List[Card]) extends Board
+  object FiveCardBoard {
+    def apply(cards: List[Card]): Either[CombinationError, FiveCardBoard] = {
+      Either.cond(cards.length == 5, new FiveCardBoard(cards), IncorrectCardsNumber("must be 5 cards"))
+    }
+  }
 
-      ctype match {
-        case OmahaHoldemBoard => checkingSizeEq(5)
-        case OmahaHoldemHand => checkingSizeEq(4)
-        case TexasHoldemBoard => checkingSizeEq(5)
-        case TexasHoldemHand => checkingSizeEq(2)
-        case MatchedCombination => Either.cond(cards.length >= 2, new Combination(cards, ctype), IncorrectCombinationSize("must be at least 2 cards"))
-        case _ => Left(UnsupportedCombinationType(ctype))
-      }
+  final case class TexasHoldemHand private(cards: List[Card]) extends Hand
+  object TexasHoldemHand {
+    def apply(cards: List[Card]): Either[CombinationError, TexasHoldemHand] = {
+      Either.cond(cards.length == 2, new TexasHoldemHand(cards), IncorrectCardsNumber("must be 2 cards"))
+    }
+  }
+
+  final case class OmahaHoldemHand private(cards: List[Card]) extends Hand
+  object OmahaHoldemHand {
+    def apply(cards: List[Card]): Either[CombinationError, OmahaHoldemHand] = {
+      Either.cond(cards.length == 4, new OmahaHoldemHand(cards), IncorrectCardsNumber("must be 4 cards"))
     }
   }
 
   sealed trait CombinationError
-  final case class IncorrectCombinationSize(msg: String) extends CombinationError
-  final case class UnsupportedCombinationType[T <: CombinationType](ctype: T) extends CombinationError
+  final case class IncorrectCardsNumber(msg: String) extends CombinationError
 
-  final case class TestCase(board: Combination[_ <: Board], hands: List[Combination[_ <: Hand]])
-  final case class TestResult(board: Combination[_ <: Board], hands: SortedSet[Combination[_ <: Hand]])
+  final case class TestCase(board: Board, hands: List[Hand])
+  final case class TestResult(board: Board, hands: SortedSet[Hand])
 }
