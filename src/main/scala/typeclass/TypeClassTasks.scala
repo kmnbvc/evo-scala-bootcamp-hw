@@ -3,8 +3,8 @@ package typeclass
 object TypeClassTask {
   type HashCode[T] = Function[T, Int]
 
-  implicit class HashCodeSyntax[A : HashCode](x: A)(implicit magic: HashCode[A]) {
-    def hash: Int = magic.apply(x)
+  implicit class HashCodeSyntax[A](x: A) {
+    def hash(implicit magic: HashCode[A]): Int = magic.apply(x)
   }
 
   implicit val hashCodeString: HashCode[String] = s => s.hashCode
@@ -26,11 +26,15 @@ object Task2 {
 
   implicit val showUser: Show[User] = _.name
 
-  implicit class ShowSyntax[T : Show](entity: T)(implicit ev: Show[T]) {
-    def show: String = ev.show(entity)
+  implicit class ShowSyntax[T](entity: T) {
+    def show(implicit sh: Show[T]): String = sh.show(entity)
   }
 
+  def show[T : Show](x: T): String = x.show
+
   User("1", "Oleg").show
+  show(User("1", "Oleg"))
+  User("1", "Oleg").show(user => user.id)
 }
 
 object Task3 {
@@ -51,7 +55,7 @@ object Task3 {
   }
 
   implicit class ParseSyntax(entity: String) {
-    def parse[T : Parse](implicit ev: Parse[T]): Either[Error, T] = ev.parse(entity)
+    def parse[T](implicit ev: Parse[T]): Either[Error, T] = ev.parse(entity)
   }
 
   "lalala".parse[User]
@@ -73,8 +77,8 @@ object AdvancedHomework {
     def _flatMap[A, B](entity: F[A])(f: A => F[B]): F[B]
   }
 
-  implicit class FlatMapSyntax[F[_] : FlatMap, A](entity: F[A])(implicit ev: FlatMap[F]) {
-    def _flatMap[B](f: A => F[B]): F[B] = ev._flatMap(entity)(f)
+  implicit class FlatMapSyntax[F[_], A](entity: F[A]) {
+    def _flatMap[B](f: A => F[B])(implicit ev: FlatMap[F]): F[B] = ev._flatMap(entity)(f)
   }
 
   case class User(id: String, name: String)
