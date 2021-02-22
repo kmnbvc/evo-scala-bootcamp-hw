@@ -5,16 +5,24 @@ import sbt.{Def, _}
 
 object BulkySourcesPlugin extends AutoPlugin {
 
-  val bulkyThresholdInLines = settingKey[Int]("Plugin shows source files with number of lines more than this value")
-  val bulkySources = taskKey[Seq[(Int, File)]]("Run bulky sources task")
+  object autoImport {
+    val bulkyThresholdInLines = settingKey[Int]("Plugin shows source files with number of lines more than this value")
+    val bulkySources = taskKey[Seq[(Int, File)]]("Run bulky sources task")
+  }
+
+  import autoImport._
+
+  override def trigger = allRequirements
 
   lazy val bulkySourcesTask = Def.task {
     val threshold = bulkyThresholdInLines.value
     sources.value.map(countLinesTuple).filter(exceed(threshold)).sorted(ordering)
   }
 
-  override def projectSettings: Seq[Def.Setting[_]] = inConfig(Compile)(taskSetting) ++ inConfig(Test)(taskSetting)
-  override def globalSettings: Seq[Def.Setting[_]] = bulkyThresholdInLines := 100
+  override def projectSettings: Seq[Def.Setting[_]] =
+    Seq(bulkyThresholdInLines := 100) ++
+    inConfig(Compile)(taskSetting) ++
+    inConfig(Test)(taskSetting)
 
   private val taskSetting = bulkySources := bulkySourcesTask.value
   private val countLines: File => Int = f => IO.readLines(f).length
