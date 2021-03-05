@@ -4,7 +4,7 @@ import basics.ControlStructuresHomework._
 import org.scalatest.flatspec._
 import org.scalatest.matchers._
 
-class ControlStructuresHomeworkTest extends AnyFlatSpec with should.Matchers {
+class ControlStructuresHomeworkSpec extends AnyFlatSpec with should.Matchers {
 
   "sum" should "calc correctly" in {
     process("sum 5 5 6 8.5") should be("the sum of 5 5 6 8.5 is 24.5")

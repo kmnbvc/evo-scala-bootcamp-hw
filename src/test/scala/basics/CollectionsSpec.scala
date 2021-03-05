@@ -11,7 +11,7 @@ import basics.Collections.SolutionShuffle.shuffle
 import org.scalatest.flatspec._
 import org.scalatest.matchers.should
 
-class CollectionsTest extends AnyFlatSpec with should.Matchers {
+class CollectionsSpec extends AnyFlatSpec with should.Matchers {
 
   ignore can "run example" in {
     println(runningSum(Array()).mkString("Array(", ", ", ")"))
