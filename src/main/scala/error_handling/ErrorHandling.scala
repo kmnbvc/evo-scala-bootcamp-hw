@@ -1,7 +1,7 @@
 package error_handling
 
 import cats.data.ValidatedNec
-import cats.implicits.{catsSyntaxTuple4Semigroupal, catsSyntaxValidatedIdBinCompat0}
+import cats.implicits.{catsSyntaxOption, catsSyntaxTuple4Semigroupal, catsSyntaxValidatedIdBinCompat0}
 
 import java.time.ZonedDateTime
 import scala.util.Try
@@ -14,18 +14,20 @@ object ErrorHandling {
   final case class CardNumber private(value: String) extends AnyVal
   object CardNumber {
     def apply(value: String): AllErrorsOr[CardNumber] = {
-      if (value.length != 16) InvalidCardNumberLength.invalidNec
-      else if (!value.matches("[1-9]")) InvalidCardNumberFormat.invalidNec
-      else new CardNumber(value).validNec
+      def validateLength: AllErrorsOr[String] = if (value.length != 16) InvalidCardNumberLength.invalidNec else value.validNec
+      def validSymbols(value: String): AllErrorsOr[String] = if (!value.matches("[1-9]")) InvalidCardNumberFormat.invalidNec else value.validNec
+
+      validateLength.andThen(validSymbols).map(new CardNumber(_))
     }
   }
 
   final case class CardSecurityCode private(value: String) extends AnyVal
   object CardSecurityCode {
     def apply(value: String): AllErrorsOr[CardSecurityCode] = {
-      if (value.length != 3) InvalidSecurityCodeLength.invalidNec
-      else if (!value.matches("[1-9]")) InvalidSecurityCodeChars.invalidNec
-      else new CardSecurityCode(value).validNec
+      def validLength: AllErrorsOr[String] = if (value.length != 3) InvalidSecurityCodeLength.invalidNec else value.validNec
+      def validSymbols(value: String): AllErrorsOr[String] = if (!value.matches("[1-9]")) InvalidSecurityCodeChars.invalidNec else value.validNec
+
+      validLength.andThen(validSymbols).map(new CardSecurityCode(_))
     }
   }
 
@@ -36,16 +38,22 @@ object ErrorHandling {
       else if (value.length > 99) NameMaxLengthExceeded.invalidNec
       else if (!value.matches("[A-Z]")) InvalidNameChars.invalidNec
       else new CardName(value).validNec
+
+      def validCase: AllErrorsOr[String] = if (value.exists(_.isLower)) InvalidNameCase.invalidNec else value.validNec
+      def validMaxLength(value: String): AllErrorsOr[String] = if (value.length > 99) NameMaxLengthExceeded.invalidNec else value.validNec
+      def validSymbols(value: String): AllErrorsOr[String] = if (!value.matches("[A-Z]")) InvalidNameChars.invalidNec else value.validNec
+
+      validCase.andThen(validMaxLength).andThen(validSymbols).map(new CardName(_))
     }
   }
 
   final case class CardExpirationDate private(value: ZonedDateTime) extends AnyVal
   object CardExpirationDate {
     def apply(value: String): AllErrorsOr[CardExpirationDate] = {
-      Try(ZonedDateTime.parse(value)).toEither.left.map(_ => InvalidDateFormat).flatMap(d =>
-        if (d.isBefore(ZonedDateTime.now())) Left(DateAlreadyExpired)
-        else Right(CardExpirationDate(d))
-      ).fold(_.invalidNec, _.validNec)
+      def validDateFormat: AllErrorsOr[ZonedDateTime] = Try(ZonedDateTime.parse(value)).toOption.toValidNec(InvalidDateFormat)
+      def dateInFuture(date: ZonedDateTime): AllErrorsOr[ZonedDateTime] = if (date.isBefore(ZonedDateTime.now())) DateAlreadyExpired.invalidNec else date.validNec
+
+      validDateFormat.andThen(dateInFuture).map(new CardExpirationDate(_))
     }
   }
 
@@ -56,20 +64,20 @@ object ErrorHandling {
 
   sealed trait ValidationError
   object ValidationError {
-    sealed case object InvalidCardNumberFormat extends ValidationError
-    sealed case object InvalidCardNumberLength extends ValidationError
+    case object InvalidCardNumberFormat extends ValidationError
+    case object InvalidCardNumberLength extends ValidationError
 
-    sealed case object InvalidNameChars extends ValidationError
-    sealed case object InvalidNameCase extends ValidationError
-    sealed case object NameMaxLengthExceeded extends ValidationError
+    case object InvalidNameChars extends ValidationError
+    case object InvalidNameCase extends ValidationError
+    case object NameMaxLengthExceeded extends ValidationError
 
-    sealed case object InvalidSecurityCodeChars extends ValidationError
-    sealed case object InvalidSecurityCodeLength extends ValidationError
+    case object InvalidSecurityCodeChars extends ValidationError
+    case object InvalidSecurityCodeLength extends ValidationError
 
-    sealed case object InvalidDateFormat extends ValidationError
-    sealed case object DateAlreadyExpired extends ValidationError
+    case object InvalidDateFormat extends ValidationError
+    case object DateAlreadyExpired extends ValidationError
 
-    sealed case object RequiredValue extends ValidationError
+    case object RequiredValue extends ValidationError
   }
 
   object PaymentCardValidator {
