@@ -208,3 +208,75 @@ object ImplicitsHomework {
   }
 
 }
+
+// Additional exercises from Q&A session
+object QnAExercises {
+
+  import cats._
+
+  // 4.4. Implement Semigroupal for Map
+  implicit def semigroupalMap[K]: Semigroupal[Map[K, *]] = new Semigroupal[Map[K, *]] {
+    override def product[A, B](fa: Map[K, A], fb: Map[K, B]): Map[K, (A, B)] = (fa, fb) match {
+      case (x, y) => for { (k, v1) <- x if y.contains(k) } yield (k, (v1, y(k)))
+      case _ => Map.empty
+    }
+  }
+
+  // 5. Applicative
+  trait Applicative[F[_]] extends Semigroupal[F] with Functor[F] {
+    def pure[A](x: A): F[A]
+  }
+
+  // 5.1. Implement Applicative for Option, Either
+  implicit val applicativeEither: Applicative[Either[String, *]] = new Applicative[Either[String, *]] {
+    override def pure[A](x: A): Either[String, A] = Right(x)
+    override def product[A, B](fa: Either[String, A], fb: Either[String, B]): Either[String, (A, B)] = (fa, fb) match {
+      case (Right(a), Right(b)) => Right(a, b)
+      case (Left(s1), Left(s2)) => Left(s1 + s2)
+      case (Left(s1), _) => Left(s1)
+      case (_, Left(s2)) => Left(s2)
+    }
+    override def map[A, B](fa: Either[String, A])(f: A => B): Either[String, B] = fa match {
+      case Right(a) => Right(f(a))
+      case _ => fa.asInstanceOf
+    }
+  }
+
+  implicit val applicativeOption: Applicative[Option] = new Applicative[Option] {
+    override def pure[A](x: A): Option[A] = Some(x)
+    override def product[A, B](fa: Option[A], fb: Option[B]): Option[(A, B)] = Semigroupal[Option].product(fa, fb)
+    override def map[A, B](fa: Option[A])(f: A => B): Option[B] = Functor[Option].fmap(fa)(f)
+  }
+
+  // 5.2. Implement `traverse` for all Applicatives instead of Option
+  def traverse[F[_] : Applicative, A, B](as: List[A])(f: A => F[B]): F[List[B]] = {
+    val ev = implicitly[Applicative[F]]
+    val append = (x: (List[B], B)) => x._2 :: x._1
+    as.map(f).foldLeft(ev.pure(List[B]()))((acc, fb) => ev.fmap(ev.product(acc, fb))(append))
+  }
+
+  // 6. Foldable
+  // 6.1. Implement Foldable with `foldLeft`
+  trait Foldable[F[_]] {
+    def foldLeft[A, B](fa: F[A], z: B)(f: (B, A) => B): B
+  }
+
+  // 6.2. Implement Foldable for List
+  // Note: we can use here foldLeft from standard library
+  implicit val foldableList: Foldable[List] = new Foldable[List] {
+    override def foldLeft[A, B](fa: List[A], z: B)(f: (B, A) => B): B = fa.foldLeft(z)(f)
+  }
+
+  // 6.3. Implement `traverse` for all Foldables instead of List
+
+  // is it supposed to be implemented without MonoidK?
+  def traverse2[F[_], L[_], A, B](as: L[A])(f: A => F[B])(
+    implicit ev: Applicative[F], fld: Foldable[L], apl: Applicative[L], mon: MonoidK[L]): F[L[B]] = {
+
+    fld.foldLeft(apl.fmap(as)(f), ev.pure(mon.empty[B])) { (acc, fb) =>
+      ev.fmap(ev.product(acc, fb)) {
+        case (acc, b) => mon.combineK(acc, apl.pure(b))
+      }
+    }
+  }
+}
