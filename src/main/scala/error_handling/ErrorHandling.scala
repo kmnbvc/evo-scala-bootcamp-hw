@@ -3,7 +3,8 @@ package error_handling
 import cats.data.ValidatedNec
 import cats.implicits.{catsSyntaxOption, catsSyntaxTuple4Semigroupal, catsSyntaxValidatedIdBinCompat0}
 
-import java.time.ZonedDateTime
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import scala.util.Try
 
 object ErrorHandling {
@@ -15,49 +16,48 @@ object ErrorHandling {
   object CardNumber {
     def apply(value: String): AllErrorsOr[CardNumber] = {
       def validateLength: AllErrorsOr[String] = if (value.length != 16) InvalidCardNumberLength.invalidNec else value.validNec
-      def validSymbols(value: String): AllErrorsOr[String] = if (!value.matches("[1-9]")) InvalidCardNumberFormat.invalidNec else value.validNec
+      def validateFormat: AllErrorsOr[String] = if (!value.matches("[1-9]+")) InvalidCardNumberFormat.invalidNec else value.validNec
 
-      validateLength.andThen(validSymbols).map(new CardNumber(_))
+      validateLength.ap(validateFormat.map(passthroughValid[String])).map(new CardNumber(_))
     }
   }
 
   final case class CardSecurityCode private(value: String) extends AnyVal
   object CardSecurityCode {
     def apply(value: String): AllErrorsOr[CardSecurityCode] = {
-      def validLength: AllErrorsOr[String] = if (value.length != 3) InvalidSecurityCodeLength.invalidNec else value.validNec
-      def validSymbols(value: String): AllErrorsOr[String] = if (!value.matches("[1-9]")) InvalidSecurityCodeChars.invalidNec else value.validNec
+      def validateLength: AllErrorsOr[String] = if (value.length != 3) InvalidSecurityCodeLength.invalidNec else value.validNec
+      def validateFormat: AllErrorsOr[String] = if (!value.matches("[1-9]+")) InvalidSecurityCodeFormat.invalidNec else value.validNec
 
-      validLength.andThen(validSymbols).map(new CardSecurityCode(_))
+      validateLength.ap(validateFormat.map(passthroughValid[String])).map(new CardSecurityCode(_))
     }
   }
 
-  final case class CardName private(value: String) extends AnyVal
-  object CardName {
-    def apply(value: String): AllErrorsOr[CardName] = {
-      if (value.exists(_.isLower)) InvalidNameCase.invalidNec
-      else if (value.length > 99) NameMaxLengthExceeded.invalidNec
-      else if (!value.matches("[A-Z]")) InvalidNameChars.invalidNec
-      else new CardName(value).validNec
+  final case class CardOwnerName private(value: String) extends AnyVal
+  object CardOwnerName {
+    def apply(value: String): AllErrorsOr[CardOwnerName] = {
+      def validateCase: AllErrorsOr[String] = if (value.exists(_.isLower)) InvalidOwnerNameCase.invalidNec else value.validNec
+      def validateMaxLength: AllErrorsOr[String] = if (value.length > 99) OwnerNameMaxLengthExceeded.invalidNec else value.validNec
+      def validateChars: AllErrorsOr[String] = if (!value.matches("[a-zA-Z]+")) InvalidOwnerNameChars.invalidNec else value.validNec
 
-      def validCase: AllErrorsOr[String] = if (value.exists(_.isLower)) InvalidNameCase.invalidNec else value.validNec
-      def validMaxLength(value: String): AllErrorsOr[String] = if (value.length > 99) NameMaxLengthExceeded.invalidNec else value.validNec
-      def validSymbols(value: String): AllErrorsOr[String] = if (!value.matches("[A-Z]")) InvalidNameChars.invalidNec else value.validNec
-
-      validCase.andThen(validMaxLength).andThen(validSymbols).map(new CardName(_))
+      validateCase.ap(validateMaxLength.map(passthroughValid[String]))
+        .ap(validateChars.map(passthroughValid[String]))
+        .map(new CardOwnerName(_))
     }
   }
 
-  final case class CardExpirationDate private(value: ZonedDateTime) extends AnyVal
+  final case class CardExpirationDate private(value: YearMonth) extends AnyVal
   object CardExpirationDate {
-    def apply(value: String): AllErrorsOr[CardExpirationDate] = {
-      def validDateFormat: AllErrorsOr[ZonedDateTime] = Try(ZonedDateTime.parse(value)).toOption.toValidNec(InvalidDateFormat)
-      def dateInFuture(date: ZonedDateTime): AllErrorsOr[ZonedDateTime] = if (date.isBefore(ZonedDateTime.now())) DateAlreadyExpired.invalidNec else date.validNec
+    private val formatter = DateTimeFormatter.ofPattern("MM/yyyy")
 
-      validDateFormat.andThen(dateInFuture).map(new CardExpirationDate(_))
+    def apply(value: String): AllErrorsOr[CardExpirationDate] = {
+      def validateFormat: AllErrorsOr[YearMonth] = Try(YearMonth.parse(value, formatter)).toOption.toValidNec(InvalidExpirationDateFormat)
+      def validateDateNotExpired(value: YearMonth): AllErrorsOr[YearMonth] = if (value.isBefore(YearMonth.now())) DateAlreadyExpired.invalidNec else value.validNec
+
+      validateFormat.andThen(validateDateNotExpired).map(new CardExpirationDate(_))
     }
   }
 
-  final case class PaymentCard(name: CardName,
+  final case class PaymentCard(name: CardOwnerName,
                                number: CardNumber,
                                securityCode: CardSecurityCode,
                                expire: CardExpirationDate)
@@ -67,14 +67,15 @@ object ErrorHandling {
     case object InvalidCardNumberFormat extends ValidationError
     case object InvalidCardNumberLength extends ValidationError
 
-    case object InvalidNameChars extends ValidationError
-    case object InvalidNameCase extends ValidationError
-    case object NameMaxLengthExceeded extends ValidationError
+    case object InvalidOwnerNameChars extends ValidationError
+    case object InvalidOwnerNameCase extends ValidationError
+    case object OwnerNameMaxLengthExceeded extends ValidationError
 
-    case object InvalidSecurityCodeChars extends ValidationError
+    case object InvalidSecurityCodeFormat extends ValidationError
+
     case object InvalidSecurityCodeLength extends ValidationError
 
-    case object InvalidDateFormat extends ValidationError
+    case object InvalidExpirationDateFormat extends ValidationError
     case object DateAlreadyExpired extends ValidationError
 
     case object RequiredValue extends ValidationError
@@ -87,11 +88,12 @@ object ErrorHandling {
                  number: String,
                  expirationDate: String,
                  securityCode: String): AllErrorsOr[PaymentCard] = {
-      (CardName(name),
+      (CardOwnerName(name),
         CardNumber(number),
         CardSecurityCode(securityCode),
         CardExpirationDate(expirationDate)).mapN(PaymentCard)
     }
   }
 
+  private def passthroughValid[A]: A => A => A = _ => identity
 }
