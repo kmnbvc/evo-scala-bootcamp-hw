@@ -2,6 +2,7 @@
 val circeDeps = Seq(
   "io.circe" %% "circe-core",
   "io.circe" %% "circe-generic",
+  "io.circe" %% "circe-generic-extras",
   "io.circe" %% "circe-parser"
 ).map(_ % "0.13.0")
 

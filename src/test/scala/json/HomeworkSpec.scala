@@ -5,6 +5,7 @@ import cats.instances.list._
 import cats.syntax.traverse._
 import io.circe
 import io.circe.generic.JsonCodec
+import io.circe.generic.extras.{Configuration, ConfiguredJsonCodec, JsonKey}
 import io.circe.parser._
 import io.circe.{Decoder, Encoder}
 import org.scalatest.EitherValues
@@ -61,11 +62,16 @@ class HomeworkSpec extends AnyWordSpec with Matchers with EitherValues {
 
 object HomeworkSpec {
 
-  private val localDateFormatter = DateTimeFormatter.BASIC_ISO_DATE
-  implicit val localDateEncoder: Encoder[LocalDate] = Encoder.encodeString.contramap(localDateFormatter.format)
-  implicit val localDateDecoder: Decoder[LocalDate] = Decoder.decodeString.emap(s => Try(LocalDate.parse(s, localDateFormatter)).toEither.left.map(_.getMessage))
+  private val df = DateTimeFormatter.BASIC_ISO_DATE
+  implicit val localDateEncoder: Encoder[LocalDate] = Encoder.encodeString.contramap(df.format)
+  implicit val localDateDecoder: Decoder[LocalDate] = Decoder.decodeString.emap(s => Try(LocalDate.parse(s, df)).toEither.left.map(_.getMessage))
 
-  @JsonCodec final case class TeamTotals(assists: String, fullTimeoutRemaining: Option[String], plusMinus: String)
+  implicit val circeCfg: Configuration = Configuration.default
+
+  @ConfiguredJsonCodec
+  final case class TeamTotals(assists: String,
+                              @JsonKey("full_timeout_remaining") fullTimeoutRemaining: String,
+                              plusMinus: String)
   @JsonCodec final case class TeamBoxScore(totals: TeamTotals)
   @JsonCodec final case class GameStats(hTeam: TeamBoxScore, vTeam: TeamBoxScore)
   @JsonCodec final case class PrevMatchup(gameDate: LocalDate, gameId: String)
