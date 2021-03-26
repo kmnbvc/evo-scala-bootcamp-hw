@@ -1,7 +1,7 @@
 package error_handling
 
 import cats.data.ValidatedNec
-import cats.implicits.{catsSyntaxOption, catsSyntaxTuple4Semigroupal, catsSyntaxValidatedIdBinCompat0}
+import cats.implicits._
 
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -18,7 +18,7 @@ object ErrorHandling {
       def validateLength: AllErrorsOr[String] = if (value.length != 16) InvalidCardNumberLength.invalidNec else value.validNec
       def validateFormat: AllErrorsOr[String] = if (!value.matches("[1-9]+")) InvalidCardNumberFormat.invalidNec else value.validNec
 
-      validateLength.ap(validateFormat.map(passthroughValid[String])).map(new CardNumber(_))
+      validateLength *> validateFormat as new CardNumber(value)
     }
   }
 
@@ -28,7 +28,7 @@ object ErrorHandling {
       def validateLength: AllErrorsOr[String] = if (value.length != 3) InvalidSecurityCodeLength.invalidNec else value.validNec
       def validateFormat: AllErrorsOr[String] = if (!value.matches("[1-9]+")) InvalidSecurityCodeFormat.invalidNec else value.validNec
 
-      validateLength.ap(validateFormat.map(passthroughValid[String])).map(new CardSecurityCode(_))
+      validateLength *> validateFormat as new CardSecurityCode(value)
     }
   }
 
@@ -39,9 +39,7 @@ object ErrorHandling {
       def validateMaxLength: AllErrorsOr[String] = if (value.length > 99) OwnerNameMaxLengthExceeded.invalidNec else value.validNec
       def validateChars: AllErrorsOr[String] = if (!value.matches("[a-zA-Z]+")) InvalidOwnerNameChars.invalidNec else value.validNec
 
-      validateCase.ap(validateMaxLength.map(passthroughValid[String]))
-        .ap(validateChars.map(passthroughValid[String]))
-        .map(new CardOwnerName(_))
+      validateCase *> validateMaxLength *> validateChars as new CardOwnerName(value)
     }
   }
 
@@ -94,6 +92,4 @@ object ErrorHandling {
         CardExpirationDate(expirationDate)).mapN(PaymentCard)
     }
   }
-
-  private def passthroughValid[A]: A => A => A = _ => identity
 }

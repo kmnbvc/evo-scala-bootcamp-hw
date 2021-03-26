@@ -16,18 +16,18 @@ class ErrorHandlingSpec extends AnyFreeSpec with should.Matchers {
     "should check length is 16" in {
       val values = List("111", "9875" * 99)
       forAll(values) { input =>
-        CardNumber(input).toEither should be(Left(NonEmptyChain(InvalidCardNumberLength)))
+        CardNumber(input) should be(Invalid(NonEmptyChain(InvalidCardNumberLength)))
       }
     }
     "should check value is digits only" in {
       val values = List("123e" * 4, "#$%@" * 4, "1111-2222-3333-4")
       forAll(values) { input =>
-        CardNumber(input).toEither should be(Left(NonEmptyChain(InvalidCardNumberFormat)))
+        CardNumber(input) should be(Invalid(NonEmptyChain(InvalidCardNumberFormat)))
       }
     }
     "should collect all errors" in {
       val invalidNumber = "!@#$345" * 999
-      CardNumber(invalidNumber).toEither should be(Left(NonEmptyChain(InvalidCardNumberFormat, InvalidCardNumberLength)))
+      CardNumber(invalidNumber) should be(Invalid(NonEmptyChain(InvalidCardNumberLength, InvalidCardNumberFormat)))
     }
     "should be no errors if value is valid" in {
       val value = "1" * 16
@@ -50,7 +50,7 @@ class ErrorHandlingSpec extends AnyFreeSpec with should.Matchers {
     }
     "should collect all errors" in {
       val invalidCode = "!@#$345"
-      CardSecurityCode(invalidCode) should be(Invalid(NonEmptyChain(InvalidSecurityCodeFormat, InvalidSecurityCodeLength)))
+      CardSecurityCode(invalidCode) should be(Invalid(NonEmptyChain(InvalidSecurityCodeLength, InvalidSecurityCodeFormat)))
     }
     "should be no errors if value is valid" in {
       val value = "123"
@@ -77,7 +77,8 @@ class ErrorHandlingSpec extends AnyFreeSpec with should.Matchers {
     }
     "should collect all errors" in {
       val invalidName = "!@#$345abc" * 999
-      CardOwnerName(invalidName) should be(Invalid(NonEmptyChain(InvalidOwnerNameChars, OwnerNameMaxLengthExceeded, InvalidOwnerNameCase)))
+      CardOwnerName(invalidName) should be(Invalid(NonEmptyChain(InvalidOwnerNameCase,
+        OwnerNameMaxLengthExceeded, InvalidOwnerNameChars)))
     }
   }
 
@@ -104,9 +105,9 @@ class ErrorHandlingSpec extends AnyFreeSpec with should.Matchers {
       PaymentCardValidator.validate("name", "card number 123", "01/02/2023", "sec code") should be(
         Invalid(NonEmptyChain(
           InvalidOwnerNameCase,
-          InvalidCardNumberFormat, InvalidCardNumberLength,
-          InvalidSecurityCodeFormat, InvalidSecurityCodeLength,
-          InvalidExpirationDateFormat,
+          InvalidCardNumberLength, InvalidCardNumberFormat,
+          InvalidSecurityCodeLength, InvalidSecurityCodeFormat,
+          InvalidExpirationDateFormat
         ))
       )
     }
