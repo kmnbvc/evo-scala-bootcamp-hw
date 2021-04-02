@@ -8,7 +8,7 @@ import org.scalatest.Inspectors.forAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should
 
-import java.time.YearMonth
+import java.time.{Instant, YearMonth}
 
 class ErrorHandlingSpec extends AnyFreeSpec with should.Matchers {
 
@@ -94,8 +94,8 @@ class ErrorHandlingSpec extends AnyFreeSpec with should.Matchers {
       CardExpirationDate(invalid) should be(Invalid(NonEmptyChain(DateAlreadyExpired)))
     }
     "should work for valid case" in {
-      val input = "03/2021"
-      val expected = YearMonth.of(2021, 3)
+      val input = "03/9999"
+      val expected = YearMonth.of(9999, 3)
       CardExpirationDate(input) should matchPattern { case Valid(CardExpirationDate(d)) if d == expected => }
     }
   }
