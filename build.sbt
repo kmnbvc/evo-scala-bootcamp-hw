@@ -3,11 +3,12 @@ val circeDeps = Seq(
   "io.circe" %% "circe-core",
   "io.circe" %% "circe-generic",
   "io.circe" %% "circe-generic-extras",
-  "io.circe" %% "circe-parser"
+  "io.circe" %% "circe-parser",
 ).map(_ % "0.13.0")
 
 val catsDeps = Seq(
-  "org.typelevel" %% "cats-core" % "2.4.2"
+  "org.typelevel" %% "cats-core" % "2.4.2",
+  "org.typelevel" %% "cats-effect" % "2.4.1",
 )
 
 val testDeps = Seq(
