@@ -42,7 +42,8 @@ import scala.io.StdIn
  */
 object EffectsHomework2 extends IOApp {
 
-  private val ec = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool())
+  private val cores = Runtime.getRuntime.availableProcessors()
+  private val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(cores))
   private val cs = IO.contextShift(ec)
 
   def run(args: List[String]): IO[ExitCode] = {
@@ -54,7 +55,7 @@ object EffectsHomework2 extends IOApp {
       path <- filePathReader.retrying
       seed <- seedReader.retrying
       content <- IO(Files.readString(path))
-      words <- IO(content.split("\\s").toList)
+      words <- IO(content.split("\\s+").toList)
     } yield (words, seed)
 
     val hashing = List(javaHash _, knuthHash _)
@@ -63,13 +64,18 @@ object EffectsHomework2 extends IOApp {
       case (words, seed) => hashing.traverse(f => signature(words, seed, f)(cs))
     }
 
-    result.map(xs => println(xs.min)).guarantee(IO(ec.shutdown())).as(ExitCode.Success)
+    result.map(xs => println(xs.flatten.minBy(_.hash))).guarantee(IO(ec.shutdown())).as(ExitCode.Success)
   }
 
   object Hashing {
-    def signature(words: List[String], seed: Int, f: (String, Int) => Int)(implicit cs: ContextShift[IO]): IO[Int] = {
-      words.map(w => IO(f(w, seed)).start(cs).flatMap(_.join)).sequence.map(_.min)
+    final case class Result(word: String, hash: Int)
+
+    def signature(words: List[String], seed: Int, f: (String, Int) => Int)(implicit cs: ContextShift[IO]): IO[List[Result]] = {
+      words.traverse(w => IO(hash(w, seed, f)).start(cs))
+        .flatMap(_.traverse(_.join))
     }
+
+    def hash(word: String, seed: Int, f: (String, Int) => Int): Result = Result(word, f(word, seed))
 
     def javaHash(word: String, seed: Int = 0): Int = {
       var hash = 0
