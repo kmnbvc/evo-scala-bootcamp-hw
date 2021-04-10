@@ -12,7 +12,9 @@ val catsDeps = Seq(
 )
 
 val testDeps = Seq(
-  "org.scalatest" %% "scalatest" % "3.2.2" % Test
+  "org.scalatest" %% "scalatest" % "3.2.2" % Test,
+  "org.scalacheck" %% "scalacheck" % "1.14.1" % Test,
+  "org.scalatestplus" %% "scalacheck-1-15" % "3.2.7.0" % Test
 )
 
 lazy val root = (project in file("."))
@@ -25,7 +27,8 @@ lazy val root = (project in file("."))
     libraryDependencies ++= circeDeps,
     libraryDependencies ++= Seq(
       "com.chuusai" %% "shapeless" % "2.3.3",
-      "org.scalaj" %% "scalaj-http" % "2.4.2"
+      "org.scalaj" %% "scalaj-http" % "2.4.2",
+      "org.tpolecat" %% "atto-core" % "0.9.3",
     ),
     libraryDependencies ++= testDeps,
     addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.3" cross CrossVersion.full),
