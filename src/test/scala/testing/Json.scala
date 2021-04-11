@@ -1,11 +1,11 @@
 package testing
 
-import atto.parser.character.char
-import atto.parser.text.{string, stringLiteral}
+import atto.Parser
+import atto.parser.character._
 import atto.parser.combinator.endOfInput
 import atto.parser.numeric.double
+import atto.parser.text._
 import atto.syntax.parser._
-import atto.Parser
 
 object Json {
   sealed trait Json
@@ -26,12 +26,16 @@ object Json {
     val jString: Parser[JString] =
       stringLiteral -| JString
     lazy val jArray: Parser[JArray] =
-      (char('[') ~> json.sepBy1(char(',')) <~ char(']')) -| { l =>
-        JArray(l.toList.toVector)
+      (char('[') ~> json.sepBy(char(',')) <~ char(']')) -| { l =>
+        JArray(l.toVector)
       }
     lazy val jObject: Parser[JObject] =
-      (char('{') ~> ((stringLiteral <~ char(':')) ~ json).sepBy1(char(',')) <~ char('}')) -| { l =>
-        JObject(l.toList.toMap)
+      braces {
+        val name = stringLiteral
+        val sep = skipWhitespace ~> char(':') <~ skipWhitespace
+        ((name <~ sep) ~ json).sepBy(char(','))
+      } -| {
+        l => JObject(l.toMap)
       }
     lazy val json: Parser[Json] =
       jNull | jBoolean | jNumber | jString | jArray | jObject
@@ -43,11 +47,15 @@ object Json {
     Parser.jsonOnly.parseOnly(s).option
 
   def print(json: Json): String = json match {
-    case JNull => ???
-    case JBoolean(_) => ???
-    case JNumber(_) => ???
-    case JString(_) => ???
-    case JArray(_) => ???
-    case JObject(_) => ???
+    case JNull => "null"
+    case JBoolean(value) => value.toString
+    case JNumber(value) => value.toString
+    case JString(value) => quote(value)
+    case JArray(values) => values.map(print).mkString("[", ",", "]")
+    case JObject(values) => values.map {
+      case (field, value) => s"${quote(field)}:${print(value)}"
+    }.mkString("{", ",", "}")
   }
+
+  def quote(s: String): String = "\"" + s + "\""
 }
