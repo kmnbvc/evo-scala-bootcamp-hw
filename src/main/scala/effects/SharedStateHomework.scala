@@ -3,6 +3,7 @@ package effects
 import cats.Monad
 import cats.effect._
 import cats.effect.concurrent.Ref
+import cats.effect.implicits._
 import cats.implicits._
 
 import scala.concurrent.duration
@@ -22,50 +23,48 @@ object SharedStateHomework extends IOApp {
     def put(key: K, value: V): F[Unit]
   }
 
-  type CacheData[K, V] = Map[K, (Long, V)]
   type CacheEntry[K, V] = (K, (Long, V))
   type CacheState[F[_], K, V] = Ref[F, Map[K, (Long, V)]]
 
-  class RefCache[F[_] : Clock : Monad, K, V](state: CacheState[F, K, V], expiresIn: FiniteDuration) extends Cache[F, K, V] {
-    def get(key: K): F[Option[V]] = {
-      val ifNotExpired = (time: Long) => state.modify { map =>
+  private class RefCache[F[_] : Clock : Monad, K, V](
+                                                      state: CacheState[F, K, V],
+                                                      expiresIn: FiniteDuration
+                                                    ) extends Cache[F, K, V] {
+    def get(key: K): F[Option[V]] = time.flatMap { current =>
+      state.modify { map =>
         map.get(key) match {
-          case Some(entry) if expired(time, (key, entry), expiresIn) => (map.removed(key), None)
+          case Some(entry) if expired(current, (key, entry), expiresIn) => (map.removed(key), None)
           case Some((_, value)) => (map, Some(value))
           case None => (map, None)
         }
       }
-
-      time >>= ifNotExpired
     }
 
     def put(key: K, value: V): F[Unit] = {
-      val put = (entry: CacheEntry[K, V]) => state.update(_ + entry)
-      val entry = (key: K, value: V) => (time: Long) => (key -> (time, value)).pure[F]
-
-      time >>= entry(key, value) >>= put
+      time.map(key -> (_, value)).flatMap(entry => state.update(_ + entry))
     }
   }
 
   object Cache {
-    def of[F[_] : Clock, K, V](expiresIn: FiniteDuration, checkOnExpirationsEvery: FiniteDuration)
-                              (implicit T: Timer[F], C: Concurrent[F]): F[Cache[F, K, V]] = {
-      for {
-        state <- Ref.of(Map.empty[K, (Long, V)])
-        _ <- C.start(expiring(state, expiresIn, checkOnExpirationsEvery))
-        ref = new RefCache[F, K, V](state, expiresIn)
-      } yield ref
+    def of[F[_], K, V](expiresIn: FiniteDuration, checkOnExpirationsEvery: FiniteDuration)
+                      (implicit T: Timer[F], C: Concurrent[F]): Resource[F, Cache[F, K, V]] = {
+
+      expiringState[F, K, V](expiresIn, checkOnExpirationsEvery).map { state =>
+        new RefCache[F, K, V](state, expiresIn)
+      }
     }
 
-    def expiring[F[_] : Clock, K, V](state: CacheState[F, K, V], expiresIn: FiniteDuration, checkOnExpirationsEvery: FiniteDuration)
-                                    (implicit T: Timer[F], C: Concurrent[F]): F[Unit] = {
-      val task = for {
-        _ <- T.sleep(checkOnExpirationsEvery)
-        time <- time
-        _ <- state.update(_.filterNot(expired(time, _, expiresIn)))
-      } yield ()
+    def expiringState[F[_], K, V](expiresIn: FiniteDuration, checkOnExpirationsEvery: FiniteDuration)
+                                 (implicit T: Timer[F], C: Concurrent[F]): Resource[F, CacheState[F, K, V]] = {
+      Resource.eval(Ref.of(Map.empty[K, (Long, V)])).flatTap { state =>
+        val task = for {
+          _ <- T.sleep(checkOnExpirationsEvery)
+          current <- time[F]
+          _ <- state.update(_.filterNot(expired(current, _, expiresIn)))
+        } yield ()
 
-      task.foreverM
+        task.foreverM.background
+      }
     }
   }
 
@@ -77,31 +76,32 @@ object SharedStateHomework extends IOApp {
   private def time[F[_] : Clock]: F[Long] = Clock[F].realTime(duration.MILLISECONDS)
 
   override def run(args: List[String]): IO[ExitCode] = {
-    for {
-      cache <- Cache.of[IO, Int, String](10.seconds, 4.seconds)
-      _ <- cache.put(1, "Hello")
-      _ <- cache.put(2, "World")
-      _ <- cache.get(1).flatMap(s => IO {
-        println(s"first key $s")
-      })
-      _ <- cache.get(2).flatMap(s => IO {
-        println(s"second key $s")
-      })
-      _ <- IO.sleep(12.seconds)
-      _ <- cache.get(1).flatMap(s => IO {
-        println(s"first key $s")
-      })
-      _ <- cache.get(2).flatMap(s => IO {
-        println(s"second key $s")
-      })
-      _ <- IO.sleep(12.seconds)
-      _ <- cache.get(1).flatMap(s => IO {
-        println(s"first key $s")
-      })
-      _ <- cache.get(2).flatMap(s => IO {
-        println(s"second key $s")
-      })
-    } yield ExitCode.Success
+    Cache.of[IO, Int, String](10.seconds, 4.seconds).use { cache =>
+      for {
+        _ <- cache.put(1, "Hello")
+        _ <- cache.put(2, "World")
+        _ <- cache.get(1).flatMap(s => IO {
+          println(s"first key $s")
+        })
+        _ <- cache.get(2).flatMap(s => IO {
+          println(s"second key $s")
+        })
+        _ <- IO.sleep(12.seconds)
+        _ <- cache.get(1).flatMap(s => IO {
+          println(s"first key $s")
+        })
+        _ <- cache.get(2).flatMap(s => IO {
+          println(s"second key $s")
+        })
+        _ <- IO.sleep(12.seconds)
+        _ <- cache.get(1).flatMap(s => IO {
+          println(s"first key $s")
+        })
+        _ <- cache.get(2).flatMap(s => IO {
+          println(s"second key $s")
+        })
+      } yield ExitCode.Success
+    }
   }
 }
 
