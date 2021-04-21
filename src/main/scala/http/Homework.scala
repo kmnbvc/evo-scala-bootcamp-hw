@@ -1,6 +1,7 @@
 package http
 
 import cats.effect._
+import cats.effect.concurrent.Ref
 import cats.implicits._
 import http.Message._
 import io.circe.Codec
@@ -16,7 +17,6 @@ import org.http4s.server.middleware.Logger
 
 import java.security.SecureRandom
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicReference
 import scala.concurrent.ExecutionContext.global
 
 // Homework. Place the solution under `http` package in your homework repository.
@@ -39,37 +39,39 @@ object GuessServer extends IOApp {
   object valueParam extends QueryParamDecoderMatcher[Int]("value")
   object gameIdParam extends QueryParamDecoderMatcher[String]("gameId")
 
-  private val storage = new AtomicReference(Map.empty[String, Int])
   private val random = SecureRandom.getInstanceStrong
 
-  def run(args: List[String]): IO[ExitCode] = {
-    val app = Logger.httpApp(logHeaders = true, logBody = true)(routes().orNotFound)
-
-    BlazeServerBuilder[IO](global)
+  def run(args: List[String]): IO[ExitCode] = for {
+    app <- makeApp()
+    srv <- BlazeServerBuilder[IO](global)
       .withHttpApp(app)
       .bindHttp(port = 9009, host = "localhost")
       .serve
       .compile
       .drain
       .as(ExitCode.Success)
-  }
+  } yield srv
 
-  def routes(): HttpRoutes[IO] = {
+  def makeApp(): IO[HttpApp[IO]] = for {
+    storage <- Ref.of[IO, Map[String, Int]](Map.empty)
+    rts = routes(storage).orNotFound
+    app = Logger.httpApp(logHeaders = true, logBody = true)(rts)
+  } yield app
+
+  def routes(storage: Ref[IO, Map[String, Int]]): HttpRoutes[IO] = {
     HttpRoutes.of[IO] {
       case GET -> Root / "start" =>
-        val (id, x, bounds) = generateNumber()
-        storage.updateAndGet(_ + (id -> x))
-        Ok((id, bounds))
+        val (id, number, bounds) = generateNumber()
+        storage.update(_ + (id -> number)) >> Ok((id, bounds))
 
-      case GET -> Root / "guess" :? valueParam(value) :? gameIdParam(id) =>
-        val data = storage.getAndUpdate { map =>
-          map.get(id) match {
-            case Some(correct) if value == correct => map.removed(id)
-            case _ => map
-          }
+      case GET -> Root / "guess" :? valueParam(value) :? gameIdParam(id) => for {
+        result <- storage.modify { values =>
+          val updated = values.updatedWith(id)(x => x.filterNot(_ == value))
+          val a = values.get(id).map(answer(_, value))
+          (updated, a)
         }
-
-        data.get(id).map(x => Ok(answer(x, value))).getOrElse(NotFound(s"No such game id: $id"))
+        resp <- result.map(Ok(_)).getOrElse(NotFound(s"No such game id: $id"))
+      } yield resp
     }
   }
 
