@@ -8,8 +8,8 @@ import fs2.concurrent.Queue
 import http.MessageWS._
 import io.circe._
 import io.circe.generic.semiauto._
-import io.circe.syntax._
 import io.circe.parser._
+import io.circe.syntax._
 import org.http4s.HttpRoutes
 import org.http4s.client.jdkhttpclient._
 import org.http4s.dsl.io._
@@ -55,21 +55,21 @@ object GuessServerWS extends IOApp {
       case GET -> Root / "start" / "ws" => for {
         queue <- Queue.unbounded[IO, WebSocketFrame]
         (correct, bounds) = generateNumber()
-        starting = WebSocketFrame.Text(bounds.asJson.noSpaces)
-        send = Stream.emit(starting).merge(queue.dequeue.map(handleClientMessage(_, correct)))
+        starting = Stream.emit(WebSocketFrame.Text(bounds.asJson.noSpaces))
+        send = starting.merge(queue.dequeue.map(respond(_, correct)))
         receive = queue.enqueue
         resp <- WebSocketBuilder[IO].build(send, receive)
       } yield resp
     }
   }
 
-  def handleClientMessage(frame: WebSocketFrame, correct: Int): WebSocketFrame = frame match {
+  def respond(frame: WebSocketFrame, correct: Int): WebSocketFrame = frame match {
     case WebSocketFrame.Text(text, _) =>
-      decode[Guess](text).map(g => answer(correct, g.x)).fold(
-        e => WebSocketFrame.Text(e.getMessage),
-        a => WebSocketFrame.Text(a.asJson.noSpaces)
-      )
-    case _ => frame
+      decode[Guess](text) match {
+        case Right(Guess(x)) => WebSocketFrame.Text(answer(correct, x).asJson.noSpaces)
+        case Left(err) => WebSocketFrame.Text(err.getMessage)
+      }
+    case _ => WebSocketFrame.Text("not supported")
   }
 
   def answer(correct: Int, guess: Int): GuessAnswer = {
@@ -89,59 +89,55 @@ object GuessServerWS extends IOApp {
 object GuessClientWS extends IOApp {
   private val uri = uri"ws://localhost:9009/start/ws"
 
+  final case class GameState(min: Int, max: Int, attempt: Int = 0) {
+    def guess: Guess = Guess((min + max) / 2)
+    def lower: GameState = GameState(guess.x, max, attempt + 1)
+    def greater: GameState = GameState(min, guess.x, attempt + 1)
+  }
+  final case class Result(x: Int, state: GameState)
+
   override def run(args: List[String]): IO[ExitCode] = {
     val clientResource = Resource.eval(IO(HttpClient.newHttpClient()))
       .flatMap(JdkWSClient[IO](_).connectHighLevel(WSRequest(uri)))
 
     clientResource.use[IO, ExitCode] { client =>
-      OptionT(client.receive).subflatMap(parseBounds)
-        .flatMap(bounds => guess(bounds.min, bounds.max)(client))
+      OptionT(client.receive).semiflatMap(parseJson[StartingBounds](_))
+        .flatMap(guess(_, client))
         .foldF(client.sendClose("error"))(x => IO(println(x)))
         .as(ExitCode.Success)
     }
   }
 
-  private def parseBounds(frame: WSDataFrame): Option[StartingBounds] = frame match {
-    case WSFrame.Text(text, _) => decode[StartingBounds](text).toOption
-    case _ => None
+  private def parseJson[T: Decoder](frame: WSDataFrame): IO[T] = frame match {
+    case WSFrame.Text(text, _) => IO.fromEither(decode[T](text))
+    case _ => IO.raiseError(new RuntimeException(s"Unexpected frame type: $frame"))
   }
 
-  private def parseAnswer(frame: WSDataFrame): Option[GuessAnswer] = frame match {
-    case WSFrame.Text(text, _) => decode[GuessAnswer](text).toOption
-    case _ => None
-  }
-
-  def guess(min: Int, max: Int)(client: WSConnectionHighLevel[IO]): OptionT[IO, Result] = {
-    val x = (min + max) / 2
-    println(s"current bounds: ($min, $max); x: $x")
-
-    def m(storage: Ref[IO, Guess]): Stream[IO, Result] = {
-      val z: Stream[IO, GameStep] = client.receiveStream.map(parseAnswer).flatMap {
-        case Some(Correct) => Stream.eval(storage.get.map(g => Result(g.x)))
-        case Some(Lower) =>
-          val guess = storage.updateAndGet(gg => Guess((gg.x + gg.max) / 2, gg.x, gg.max))
-          val sent = guess.flatMap(gg => client.send(WSFrame.Text(gg.asJson.noSpaces)).as(gg))
-          Stream.eval(sent)
-        case Some(Greater) =>
-          val guess = storage.updateAndGet(gg => Guess((gg.min + gg.x) / 2, gg.min, gg.x))
-          val sent = guess.flatMap(gg => client.send(WSFrame.Text(gg.asJson.noSpaces)).as(gg))
-          Stream.eval(sent)
-        case None => Stream.empty
-      }
-
-      z.collectFirst {
-        case r@Result(_) => r
-      }
-    }
-
+  def guess(bounds: StartingBounds, client: WSConnectionHighLevel[IO]): OptionT[IO, Result] = {
     val res = for {
-      _ <- client.send(WSFrame.Text(Guess(x, min, max).asJson.noSpaces))
-      storage <- Ref.of[IO, Guess](Guess(x, min, max))
-      res = m(storage)
-      r = res.compile.last
-    } yield r
+      initial <- IO.pure(GameState(bounds.min, bounds.max))
+      storage <- Ref.of[IO, GameState](initial)
+      _ <- client.send(WSFrame.Text(initial.guess.asJson.noSpaces))
+      result <- untilCorrect(storage, client).compile.last
+    } yield result
 
-    OptionT(res.flatMap(x => x))
+    OptionT(res)
+  }
+
+  def untilCorrect(storage: Ref[IO, GameState], client: WSConnectionHighLevel[IO]): Stream[IO, Result] = {
+    client.receiveStream.evalMap(parseJson[GuessAnswer](_)).evalMap {
+      case Correct => storage.get.map(state => Result(state.guess.x, state))
+      case Lower => for {
+        state <- storage.updateAndGet(_.lower)
+        _ <- client.send(WSFrame.Text(state.guess.asJson.noSpaces))
+      } yield ()
+      case Greater => for {
+        state <- storage.updateAndGet(_.greater)
+        _ <- client.send(WSFrame.Text(state.guess.asJson.noSpaces))
+      } yield ()
+    }.collectFirst {
+      case r@Result(_, _) => r
+    }
   }
 }
 
@@ -153,10 +149,7 @@ object MessageWS {
 
   sealed trait GameStep
   final case class StartingBounds(min: Int, max: Int) extends GameStep
-  final case class Guess(x: Int, min: Int, max: Int) extends GameStep
-  final case class Result(x: Int) extends GameStep
-
-  final case class GameState()
+  final case class Guess(x: Int) extends GameStep
 
   object GuessAnswer {
     implicit val jsonCodec: Codec[GuessAnswer] = deriveCodec
