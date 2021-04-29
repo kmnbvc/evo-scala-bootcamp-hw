@@ -20,10 +20,28 @@ val http4sDeps = Seq(
   "io.chrisdavenport" %% "epimetheus-http4s" % "0.4.2",
 )
 
+val doobieDeps = Seq(
+  "org.tpolecat" %% "doobie-core" % "0.9.0",
+  "org.tpolecat" %% "doobie-h2" % "0.9.0",
+  "org.tpolecat" %% "doobie-hikari" % "0.9.0",
+)
+
+val akkaDeps = Seq(
+  "com.typesafe.akka" %% "akka-http" % "10.1.11",
+  "de.heikoseeberger" %% "akka-http-circe" % "1.31.0",
+  "com.typesafe.akka" %% "akka-stream" % "2.6.9",
+  "com.typesafe.akka" %% "akka-actor" % "2.6.9",
+  "com.typesafe.akka" %% "akka-persistence" % "2.6.9",
+  "com.typesafe.akka" %% "akka-cluster" % "2.6.9",
+  "com.typesafe.akka" %% "akka-cluster-sharding" % "2.6.9",
+)
+
 val testDeps = Seq(
   "org.scalatest" %% "scalatest" % "3.2.2" % Test,
   "org.scalacheck" %% "scalacheck" % "1.14.1" % Test,
-  "org.scalatestplus" %% "scalacheck-1-15" % "3.2.7.0" % Test
+  "org.scalatestplus" %% "scalacheck-1-15" % "3.2.7.0" % Test,
+  "com.typesafe.akka" %% "akka-testkit" % "2.6.9" % Test,
+  "org.tpolecat" %% "doobie-scalatest" % "0.9.0" % Test,
 )
 
 lazy val root = (project in file("."))
@@ -35,6 +53,8 @@ lazy val root = (project in file("."))
     libraryDependencies ++= catsDeps,
     libraryDependencies ++= circeDeps,
     libraryDependencies ++= http4sDeps,
+    libraryDependencies ++= akkaDeps,
+    libraryDependencies ++= doobieDeps,
     libraryDependencies ++= Seq(
       "com.chuusai" %% "shapeless" % "2.3.3",
       "org.scalaj" %% "scalaj-http" % "2.4.2",
