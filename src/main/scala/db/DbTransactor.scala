@@ -8,28 +8,11 @@ import doobie.util.ExecutionContexts
 
 object DbTransactor {
 
-  import DbConfig._
+  val dbDriverName = "org.h2.Driver"
+  val dbUrl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1"
+  val dbUser = ""
+  val dbPwd = ""
 
-  /** Simplest `transactor`, slow[er], inefficient for large apps, but OK for testing and learning.
-   * Derives transactor from driver.
-   */
-  def make[F[_] : ContextShift : Async]: Resource[F, Transactor[F]] =
-    Blocker[F].map { be =>
-      Transactor.fromDriverManager[F](
-        driver = dbDriverName,
-        url = dbUrl,
-        user = dbUser,
-        pass = dbPwd,
-        blocker = be,
-      )
-    }
-
-  /** `transactor` backed by connection pool
-   * It uses 3 execution contexts:
-   * 1 - for handling queue of connection requests
-   * 2 - for handling blocking result retrieval
-   * 3 - CPU-bound provided by `ContextShift` (usually `global` from `IOApp`)
-   */
   def pooled[F[_] : ContextShift : Async]: Resource[F, Transactor[F]] =
     for {
       ce <- ExecutionContexts.fixedThreadPool[F](10)
@@ -39,8 +22,8 @@ object DbTransactor {
         url = dbUrl,
         user = dbUser,
         pass = dbPwd,
-        connectEC = ce, // await connection on this EC
-        blocker = be, // execute JDBC operations on this EC
+        ce,
+        be,
       )
     } yield xa
 }
