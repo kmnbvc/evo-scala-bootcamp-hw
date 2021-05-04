@@ -4,7 +4,6 @@ import cats.effect._
 import doobie._
 import doobie.implicits._
 import doobie.implicits.legacy.localdate
-import doobie.postgres.implicits.pgEnumStringOpt
 
 import java.time.{LocalDate, Year}
 import java.util.UUID
@@ -19,63 +18,87 @@ import java.util.UUID
   Delete
  */
 object Homework {
-  sealed trait Storage[F[_], T] {
-    def create(entity: T): F[Int]
+  sealed trait Read[F[_], T] {
     def read(id: UUID): F[Option[T]]
     def readAll(): F[List[T]]
   }
-
-  sealed trait UpdatableStorage[F[_], T] extends Storage[F, T] {
+  sealed trait Create[F[_], T] {
+    def create(entity: T): F[Int]
+  }
+  sealed trait Update[F[_], T] {
     def update(entity: T): F[Int]
+  }
+  sealed trait Delete[F[_], T] {
     def delete(id: UUID): F[Int]
   }
 
+  sealed trait AuthorsStorage[F[_]] extends Create[F, Author]
+    with Delete[F, Author] with Read[F, Author]
+  sealed trait BooksStorage[F[_]] extends Create[F, Book]
+    with Update[F, Book] with Delete[F, Book] with Read[F, BookWithAuthor]
+
   object BooksStorage {
-    def apply(xa: Transactor[IO]): UpdatableStorage[IO, Book] = new UpdatableStorage[IO, Book] {
-      override def update(entity: Book): IO[Int] = {
-        val (id, authorId, title, year, genre) = (entity.id,
-          entity.authorId, entity.title, entity.year, entity.genre)
+    private val selectFr = fr"select a.*, b.* from books b inner join authors a on b.authorId = a.id"
+    private val whereId = (id: UUID) => fr"where b.id = $id"
 
-        sql"update books set authorId = $authorId, title = $title, year = $year, genre = $genre where id = $id"
-          .update.run.transact(xa)
+    def apply(xa: Transactor[IO]): BooksStorage[IO] = new BooksStorage[IO] {
+      def update(entity: Book): IO[Int] = update {
+        fr"update books set" ++
+          fr"authorId = ${entity.authorId}, " ++
+          fr"title = ${entity.title}," ++
+          fr"year = ${entity.year}," ++
+          fr"genre = ${entity.genre}" ++
+          fr"where id = ${entity.id}"
       }
-      override def create(entity: Book): IO[Int] = {
-        val (id, authorId, title, year, genre) = (UUID.randomUUID(),
-          entity.authorId, entity.title, entity.year, entity.genre)
 
-        sql"insert into books (id, authorId, title, year, genre) values ($id, $authorId, $title, $year, $genre)"
-          .update.run.transact(xa)
+      def create(entity: Book): IO[Int] = update {
+        fr"insert into books (id, authorId, title, year, genre) " ++
+          fr"values (" ++
+          fr"${entity.id}," ++
+          fr"${entity.authorId}," ++
+          fr"${entity.title}," ++
+          fr"${entity.year}," ++
+          fr"${entity.genre})"
       }
-      override def read(id: UUID): IO[Option[Book]] = {
-        sql"select * from books where id = $id".query[Book].option.transact(xa)
-      }
-      override def readAll(): IO[List[Book]] = {
-        sql"select * from books".query[Book].to[List].transact(xa)
-      }
-      override def delete(id: UUID): IO[Int] = {
-        sql"delete from books where id = $id".update.run.transact(xa)
-      }
+
+      def read(id: UUID): IO[Option[BookWithAuthor]] = query(selectFr ++ whereId(id)).map(_.headOption)
+      def readAll(): IO[List[BookWithAuthor]] = query(selectFr)
+      def delete(id: UUID): IO[Int] = update(sql"delete from books where id = $id")
+
+      private def query(sql: Fragment): IO[List[BookWithAuthor]] =
+        sql.query[(Author, Book)].map {
+          case (author, book) => BookWithAuthor(author, book)
+        }.to[List].transact(xa)
+
+      private def update(sql: Fragment): IO[Int] = sql.update.run.transact(xa)
     }
   }
 
   object AuthorsStorage {
-    def apply(xa: Transactor[IO]): Storage[IO, Author] = new Storage[IO, Author] {
-      override def create(entity: Author): IO[Int] = {
-        val (id, name, birthday) = (UUID.randomUUID(), entity.name, entity.birthday)
-        sql"insert into authors (id, name, birthday) values ($id, $name, $birthday)".update.run.transact(xa)
+    private val selectFr = fr"select * from authors"
+    private val whereId = (id: UUID) => fr"where id = $id"
+
+    def apply(xa: Transactor[IO]): AuthorsStorage[IO] = new AuthorsStorage[IO] {
+      def create(entity: Author): IO[Int] = {
+        val sql = fr"insert into authors (id, name, birthday) " ++
+          fr"values (" ++
+          fr"${entity.id}," ++
+          fr"${entity.name}," ++
+          fr"${entity.birthday})"
+        update(sql)
       }
-      override def read(id: UUID): IO[Option[Author]] = {
-        sql"select * from authors where id = $id".query[Author].option.transact(xa)
-      }
-      override def readAll(): IO[List[Author]] = {
-        sql"select * from authors".query[Author].to[List].transact(xa)
-      }
+      def read(id: UUID): IO[Option[Author]] = query(selectFr ++ whereId(id)).map(_.headOption)
+      def readAll(): IO[List[Author]] = query(selectFr)
+      def delete(id: UUID): IO[Int] = update(sql"delete from authors where id = $id")
+
+      private def query(sql: Fragment): IO[List[Author]] = sql.query[Author].to[List].transact(xa)
+      private def update(sql: Fragment): IO[Int] = sql.update.run.transact(xa)
     }
   }
 
   implicit val uuidMeta: Meta[UUID] = Meta[String].timap(UUID.fromString)(_.toString)
   implicit val yearMeta: Meta[Year] = Meta[Int].timap(Year.of)(_.getValue)
-  implicit val genreMeta: Meta[Genre] = pgEnumStringOpt("book_genre", Genre.fromEnum, Genre.toEnum)
   implicit val localDateMeta: Meta[LocalDate] = localdate.JavaTimeLocalDateMeta
 
+  implicit val genreMeta: Meta[Genre] = Meta[Int].timap(Genre.fromEnum)(Genre.toEnum)
 }

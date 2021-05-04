@@ -26,7 +26,7 @@ object HttpServer {
       .as(ExitCode.Success)
   }
 
-  def booksRoutes(storage: UpdatableStorage[IO, Book]): HttpRoutes[IO] = HttpRoutes.of {
+  def booksRoutes(storage: BooksStorage[IO]): HttpRoutes[IO] = HttpRoutes.of {
     case GET -> Root / "book" / UUIDVar(id) => storage.read(id).flatMap(_.fold(NotFound())(Ok(_)))
 
     case GET -> Root / "books" / "list" => storage.readAll().flatMap(Ok(_))
@@ -46,7 +46,7 @@ object HttpServer {
     case DELETE -> Root / "book" / UUIDVar(id) => storage.delete(id).flatMap(Ok(_))
   }
 
-  def authorsRoutes(storage: Storage[IO, Author]): HttpRoutes[IO] = HttpRoutes.of {
+  def authorsRoutes(storage: AuthorsStorage[IO]): HttpRoutes[IO] = HttpRoutes.of {
     case GET -> Root / "author" / UUIDVar(id) => storage.read(id).flatMap(_.fold(NotFound())(Ok(_)))
 
     case GET -> Root / "authors" / "list" => storage.readAll().flatMap(Ok(_))

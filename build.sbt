@@ -24,7 +24,6 @@ val doobieDeps = Seq(
   "org.tpolecat" %% "doobie-core" % "0.9.0",
   "org.tpolecat" %% "doobie-h2" % "0.9.0",
   "org.tpolecat" %% "doobie-hikari" % "0.9.0",
-  "org.tpolecat" %% "doobie-postgres" % "0.12.1",
 )
 
 val akkaDeps = Seq(
