@@ -1,11 +1,9 @@
 package effects
 
 import cats.effect._
-import cats.effect.concurrent.Ref
+import cats.effect.concurrent.{MVar, Ref}
 import cats.implicits._
 
-import java.util.concurrent.{ConcurrentLinkedQueue, Executors}
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.Random
 
@@ -38,26 +36,20 @@ object WorkerPoolExcercise extends IOApp {
 
     // Implement this constructor, and, correspondingly, the interface above.
     // You are free to use named or anonymous classes
-    def of[A, B](fs: List[Worker[A, B]])(implicit blocker: Blocker): IO[WorkerPool[A, B]] = {
-      val freeWorkers = new ConcurrentLinkedQueue[Worker[A, B]]()
-      fs.foreach(w => freeWorkers.add(w))
-
-      def worker(): Resource[IO, Worker[A, B]] = {
-        val acquire = Concurrent[IO].untilDefinedM(IO(Option(freeWorkers.poll())))
-        val release = (w: Worker[A, B]) => IO(freeWorkers.add(w))
-        Resource.make(acquire <* IO(println("worker obtained")))(release(_) *> IO(println("returning worker")))
-      }
-
-      IO { a =>
-        blocker.blockOn(worker().use(_.apply(a)))
+    def of[A, B](fs: List[Worker[A, B]]): IO[WorkerPool[A, B]] = {
+      MVar.of[IO, List[Worker[A, B]]](fs).map { mvar =>
+        a =>
+          mvar.modify {
+            case head :: tail => IO(tail, Some(head))
+            case Nil => IO(Nil, None)
+          }.untilDefinedM.bracket(_.apply(a)) {
+            worker => mvar.modify_(workers => IO(workers :+ worker))
+          }
       }
     }
   }
 
   def run(args: List[String]): IO[ExitCode] = {
-    val blockerEc = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool())
-    implicit val blocker: Blocker = Blocker.liftExecutorService(blockerEc)
-
     val testPool: IO[WorkerPool[Int, Int]] =
       List.range(0, 10)
         .traverse(mkWorker)
@@ -69,7 +61,6 @@ object WorkerPoolExcercise extends IOApp {
       fibers <- nums.traverse(num => pool.exec(num).start)
       result <- fibers.traverse(_.join)
       _ <- IO(println(result))
-      _ <- IO(blockerEc.shutdown())
     } yield ExitCode.Success
   }
 }
