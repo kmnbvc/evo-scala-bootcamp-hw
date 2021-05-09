@@ -18,7 +18,7 @@ object WorkerPoolExcercise extends IOApp {
   def mkWorker(id: Int)(implicit timer: Timer[IO]): IO[Worker[Int, Int]] =
     Ref[IO].of(0).map { counter =>
       def simulateWork: IO[Unit] =
-        IO(println(s"work started by $id")) >> IO(50 + Random.nextInt(450)).map(_.millis).flatMap(IO.sleep)
+        IO(println(s"work started by $id")) >> IO(50 + Random.nextInt(450) + (if (id == 0) 9999 else 0)).map(_.millis).flatMap(IO.sleep)
 
       def report: IO[Unit] =
         counter.get.flatMap(i => IO(println(s"Total processed by $id: $i")))
@@ -38,10 +38,7 @@ object WorkerPoolExcercise extends IOApp {
 
     // Implement this constructor, and, correspondingly, the interface above.
     // You are free to use named or anonymous classes
-    def of[A, B](fs: List[Worker[A, B]]): IO[WorkerPool[A, B]] = {
-      val ec = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool())
-      val be = Blocker.liftExecutionContext(ec)
-
+    def of[A, B](fs: List[Worker[A, B]])(implicit blocker: Blocker): IO[WorkerPool[A, B]] = {
       val freeWorkers = new ConcurrentLinkedQueue[Worker[A, B]]()
       fs.foreach(w => freeWorkers.add(w))
 
@@ -52,14 +49,15 @@ object WorkerPoolExcercise extends IOApp {
       }
 
       IO { a =>
-        be.blockOn {
-          worker().use(_.apply(a))
-        }
+        blocker.blockOn(worker().use(_.apply(a)))
       }
     }
   }
 
   def run(args: List[String]): IO[ExitCode] = {
+    val blockerEc = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool())
+    implicit val blocker: Blocker = Blocker.liftExecutorService(blockerEc)
+
     val testPool: IO[WorkerPool[Int, Int]] =
       List.range(0, 10)
         .traverse(mkWorker)
@@ -71,6 +69,7 @@ object WorkerPoolExcercise extends IOApp {
       fibers <- nums.traverse(num => pool.exec(num).start)
       result <- fibers.traverse(_.join)
       _ <- IO(println(result))
+      _ <- IO(blockerEc.shutdown())
     } yield ExitCode.Success
   }
 }
