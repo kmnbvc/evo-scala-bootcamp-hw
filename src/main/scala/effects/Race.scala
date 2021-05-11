@@ -6,6 +6,7 @@ import cats.effect.{ExitCase, ExitCode, IO, IOApp, Timer}
 import scala.concurrent.duration._
 import scala.util.Random
 
+// https://olegpy.com/cats-effect-exercises/
 object Race extends IOApp {
   case class Data(source: String, body: String)
 
